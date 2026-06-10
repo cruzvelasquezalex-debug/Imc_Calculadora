@@ -1,1 +1,358 @@
 
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>App IMC Pro</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="estilos.css">
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="contenedor">
+    <h1>🔐 Iniciar Sesión</h1>
+
+    <input type="email" id="correo"
+        placeholder="📧 Correo electrónico">
+
+        <input type="password" id="contrasena"
+            placeholder="🔒 Contraseña">
+
+    <button class="calcular" onclick="iniciarSesion()">
+        🚀 Entrar
+    </button>
+</div>
+
+<!-- APP IMC -->
+<div id="app" class="contenedor" style="display:none;">
+
+<h1>📱 Calculadora IMC</h1>
+
+<input type="text" id="nombre" placeholder="👤 Nombre del consultante">
+<input type="number" id="edad" placeholder="Edad">
+
+<select id="sexo">
+<option>🚹 Masculino</option>
+<option>🚺 Femenino</option>
+</select>
+
+<select id="objetivo">
+<option>🔥 Bajar peso</option>
+<option>⚖️ Mantener peso</option>
+<option>💪 Subir peso</option>
+</select>
+
+<input type="number" id="peso" placeholder="⚖️ Peso kg">
+<input type="number" id="altura" placeholder="📏 Altura Ej 1.70">
+
+<div class="botones">
+<button class="calcular" onclick="calcularIMC()">✅ Calcular</button>
+<button class="modo" onclick="modoOscuro()">🌙 Modo</button>
+<button class="pdf" onclick="generarPDF()">📄 PDF</button>
+<button class="borrar" onclick="borrarHistorial()">🗑️ Borrar</button>
+<button class="cerrar" onclick="cerrarSesion()">🚪 Cerrar</button>
+</div>
+
+<div id="barra">
+<div id="progreso"></div>
+</div>
+
+<div id="resultado"></div>
+
+<h3>📋 Historial</h3>
+
+<table>
+<tr>
+<th>Nombre</th>
+<th>Fecha</th>
+<th>IMC</th>
+<th>Estado</th>
+</tr>
+<tbody id="historial"></tbody>
+</table>
+
+</div>
+
+<script>
+
+const DB_KEY = "imcProDB";
+const SESSION_KEY = "imcProSesion";
+const USUARIO_ADMIN = {
+    correo: "",
+    password: "",
+    rol: ""
+};
+
+function obtenerBaseDatos(){
+    let datos = JSON.parse(localStorage.getItem(DB_KEY));
+
+    if(!datos || typeof datos !== "object"){
+        datos = { usuarios: [], historial: [] };
+    }
+
+    if(!Array.isArray(datos.usuarios)){
+        datos.usuarios = [];
+    }
+
+    if(!Array.isArray(datos.historial)){
+        datos.historial = [];
+    }
+
+    return datos;
+}
+
+function guardarBaseDatos(datos){
+    localStorage.setItem(DB_KEY, JSON.stringify(datos));
+}
+
+function inicializarBaseDatos(){
+    let datos = obtenerBaseDatos();
+    let adminExiste = datos.usuarios.some(usuario => usuario.correo === USUARIO_ADMIN.correo);
+
+    if(!adminExiste){
+        datos.usuarios.push(USUARIO_ADMIN);
+        guardarBaseDatos(datos);
+    }
+}
+
+function mostrarLogin(){
+    document.getElementById("app").style.display = "none";
+    document.getElementById("login").style.display = "block";
+}
+
+function mostrarApp(){
+    document.getElementById("login").style.display = "none";
+    document.getElementById("app").style.display = "block";
+}
+
+function iniciarSesion(){
+
+    let correo = document.getElementById("correo").value.trim();
+    let contrasena = document.getElementById("contrasena").value.trim();
+
+    let patron = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if(correo === ""){
+        alert("❌ Ingresa un correo electrónico");
+        return;
+    }
+
+    if(contrasena === ""){
+        alert("❌ Ingresa la contraseña");
+        return;
+    }
+
+    if(!patron.test(correo)){
+        alert("❌ Correo electrónico no válido");
+        return;
+    }
+
+    let datos = obtenerBaseDatos();
+    let usuario = datos.usuarios.find(usuario => usuario.correo === correo && usuario.password === contrasena);
+
+    if(!usuario){
+        alert("❌ Credenciales incorrectas");
+        return;
+    }
+
+    localStorage.setItem(SESSION_KEY, correo);
+
+    mostrarApp();
+}
+
+// Cerrar sesión
+function cerrarSesion(){
+
+    if(confirm("¿Deseas cerrar sesión?")){
+
+        localStorage.removeItem(SESSION_KEY);
+
+        document.getElementById("correo").value = "";
+        document.getElementById("contrasena").value = "";
+
+        mostrarLogin();
+
+        alert("✅ Sesión cerrada correctamente");
+    }
+}
+
+// Verificar si ya existe una sesión guardada
+function verificarSesion(){
+
+    let correoGuardado = localStorage.getItem(SESSION_KEY);
+
+    if(correoGuardado){
+        let datos = obtenerBaseDatos();
+        let usuarioExiste = datos.usuarios.some(usuario => usuario.correo === correoGuardado);
+
+        if(usuarioExiste){
+            mostrarApp();
+            return;
+        }
+
+        localStorage.removeItem(SESSION_KEY);
+    }
+
+    mostrarLogin();
+}
+
+// Ejecutar al cargar la página
+window.onload = function(){
+inicializarBaseDatos();
+verificarSesion();
+cargarHistorial();
+};
+
+
+function generarRecomendaciones(edad, objetivo, clasificacion){
+
+let reco = "";
+
+// Edad
+if(edad < 18){
+reco += "🧒 En crecimiento:\n- Evita dietas extremas\n- Alimentación balanceada\n\n";
+}
+else if(edad < 40){
+reco += "💪 Buen momento para mejorar condición física\n\n";
+}
+else{
+reco += "🧓 Cuida metabolismo y corazón\n\n";
+}
+
+// Objetivo
+if(objetivo.includes("Bajar")){
+reco += "🔥 Bajar peso:\n- Déficit calórico\n- Cardio + fuerza\n\n";
+}
+else if(objetivo.includes("Mantener")){
+reco += "⚖️ Mantener:\n- Equilibrio calorías\n\n";
+}
+else{
+reco += "💪 Subir peso:\n- Superávit calórico\n- Entrenamiento fuerza\n\n";
+}
+
+// IMC
+if(clasificacion==="Bajo peso"){
+reco += "🍽️ Aumenta calorías saludables";
+}
+else if(clasificacion==="Normal"){
+reco += "✅ Sigue igual";
+}
+else if(clasificacion==="Sobrepeso"){
+reco += "⚠️ Reduce azúcares y haz ejercicio diario";
+}
+else{
+reco += "🚨 Mejora hábitos y consulta especialista";
+}
+
+return reco;
+}
+
+function calcularIMC(){
+
+let nombre=document.getElementById("nombre").value;
+let edad=parseInt(document.getElementById("edad").value);
+let peso=parseFloat(document.getElementById("peso").value);
+let altura=parseFloat(document.getElementById("altura").value);
+let objetivo=document.getElementById("objetivo").value;
+
+if(!peso || !altura || !edad || !nombre){
+alert("Completa todos los campos");
+return;
+}
+
+let imc=peso/(altura*altura);
+
+let clasificacion="";
+let color="";
+let progreso=0;
+
+if(imc<18.5){
+clasificacion="Bajo peso";
+color="orange";
+progreso=25;
+}
+else if(imc<25){
+clasificacion="Normal";
+color="green";
+progreso=50;
+}
+else if(imc<30){
+clasificacion="Sobrepeso";
+color="gold";
+progreso=75;
+}
+else{
+clasificacion="Obesidad";
+color="red";
+progreso=100;
+}
+
+let recomendacion = generarRecomendaciones(edad, objetivo, clasificacion);
+
+let barra=document.getElementById("progreso");
+barra.style.width=progreso+"%";
+barra.style.background=color;
+barra.innerHTML=clasificacion;
+
+document.getElementById("resultado").innerHTML=
+`👤 <b>${nombre}</b><br>
+📊 IMC: <b>${imc.toFixed(2)}</b><br>
+📌 Estado: <b>${clasificacion}</b><br><br>
+🧠 <b>Recomendaciones:</b><br>
+${recomendacion.replace(/\n/g,"<br>")}`;
+
+guardarHistorial(nombre,new Date().toLocaleDateString(),imc.toFixed(2),clasificacion);
+}
+
+function guardarHistorial(nombre,fecha,imc,clasificacion){
+let datos=obtenerBaseDatos();
+datos.historial.push({nombre,fecha,imc,clasificacion});
+guardarBaseDatos(datos);
+cargarHistorial();
+}
+
+function cargarHistorial(){
+let datos=obtenerBaseDatos();
+let tabla=document.getElementById("historial");
+tabla.innerHTML="";
+datos.historial.forEach(d=>{
+tabla.innerHTML+=`<tr>
+<td>${d.nombre}</td>
+<td>${d.fecha}</td>
+<td>${d.imc}</td>
+<td>${d.clasificacion}</td>
+</tr>`;
+});
+}
+
+function borrarHistorial(){
+if(confirm("¿Borrar historial?")){
+let datos=obtenerBaseDatos();
+datos.historial=[];
+guardarBaseDatos(datos);
+cargarHistorial();
+}
+}
+
+function modoOscuro(){
+document.body.classList.toggle("dark");
+}
+
+async function generarPDF(){
+const { jsPDF } = window.jspdf;
+const doc = new jsPDF();
+
+let nombre=document.getElementById("nombre").value;
+let imc=(document.getElementById("peso").value)/(document.getElementById("altura").value**2);
+
+doc.text(`Reporte IMC\n\nNombre: ${nombre}\nIMC: ${imc.toFixed(2)}`,20,20);
+doc.save("IMC.pdf");
+}
+
+</script>
+
+</body>
+</html>
